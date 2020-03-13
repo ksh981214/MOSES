@@ -87,6 +87,7 @@ def get_all_metrics(test, gen, k=None, n_jobs=1, device='cpu',
     # Valid 여부 검사
     start_time = start_log('valid')
     metrics['valid'] = fraction_valid(gen, n_jobs=pool)
+    print("Valid: {}".format(metrics['valid']))
     end_log(start_time)
     
     gen = remove_invalid(gen, canonize=True)
@@ -95,6 +96,32 @@ def get_all_metrics(test, gen, k=None, n_jobs=1, device='cpu',
     for _k in k:
         start_time = start_log('unique@{}'.format(_k))
         metrics['unique@{}'.format(_k)] = fraction_unique(gen, _k, pool)
+        print("unique@{}: {}".format(_k,metrics['unique@{}'.format(_k)]))
+        end_log(start_time)
+        
+    mols = mapper(pool)(get_mol, gen)
+    kwargs = {'n_jobs': pool, 'device': device, 'batch_size': batch_size}
+    kwargs_fcd = {'n_jobs': n_jobs, 'device': device, 'batch_size': batch_size}
+        
+    start_time = start_log('IntDiv')
+    metrics['IntDiv'] = internal_diversity(mols, pool, device=device)
+    print("IntDiv: {}".format(metrics['IntDiv']))
+    end_log(start_time)
+    
+    start_time = start_log('IntDiv2')
+    metrics['IntDiv2'] = internal_diversity(mols, pool, device=device, p=2)
+    print("IntDiv2: {}".format(metrics['IntDiv2']))
+    end_log(start_time)
+    
+    start_time = start_log('Filters')
+    metrics['Filters'] = fraction_passes_filters(mols, pool)
+    print("Filters: {}".format(metrics['Filters']))
+    end_log(start_time)
+    
+    if train is not None:
+        start_time = start_log("novelty")
+        metrics['Novelty'] = novelty(mols, train, pool)
+        print("Novelty: {}".format(metrics['Novelty']))
         end_log(start_time)
         
     # Precalculated Test npz 계산
@@ -116,11 +143,9 @@ def get_all_metrics(test, gen, k=None, n_jobs=1, device='cpu',
         )
         end_log(start_time)
         
-    mols = mapper(pool)(get_mol, gen)
-    kwargs = {'n_jobs': pool, 'device': device, 'batch_size': batch_size}
-    kwargs_fcd = {'n_jobs': n_jobs, 'device': device, 'batch_size': batch_size}
-    
-    
+#     mols = mapper(pool)(get_mol, gen)
+#     kwargs = {'n_jobs': pool, 'device': device, 'batch_size': batch_size}
+#     kwargs_fcd = {'n_jobs': n_jobs, 'device': device, 'batch_size': batch_size}
     
     start_time = start_log('FCD/Test')
     metrics['FCD/Test'] = FCDMetric(**kwargs_fcd)(gen=gen, pref=ptest['FCD'])
@@ -163,17 +188,17 @@ def get_all_metrics(test, gen, k=None, n_jobs=1, device='cpu',
         )
         end_log(start_time)
         
-    start_time = start_log('IntDiv')
-    metrics['IntDiv'] = internal_diversity(mols, pool, device=device)
-    end_log(start_time)
+#     start_time = start_log('IntDiv')
+#     metrics['IntDiv'] = internal_diversity(mols, pool, device=device)
+#     end_log(start_time)
     
-    start_time = start_log('IntDiv2')
-    metrics['IntDiv2'] = internal_diversity(mols, pool, device=device, p=2)
-    end_log(start_time)
+#     start_time = start_log('IntDiv2')
+#     metrics['IntDiv2'] = internal_diversity(mols, pool, device=device, p=2)
+#     end_log(start_time)
     
-    start_time = start_log('Filters')
-    metrics['Filters'] = fraction_passes_filters(mols, pool)
-    end_log(start_time)
+#     start_time = start_log('Filters')
+#     metrics['Filters'] = fraction_passes_filters(mols, pool)
+#     end_log(start_time)
     
     # Properties
     for name, func in [('logP', logP), ('SA', SA),
@@ -184,10 +209,10 @@ def get_all_metrics(test, gen, k=None, n_jobs=1, device='cpu',
                                                       pref=ptest[name])
         end_log(start_time)
 
-    if train is not None:
-        start_time = start_log("novelty")
-        metrics['Novelty'] = novelty(mols, train, pool)
-        end_log(start_time)
+#     if train is not None:
+#         start_time = start_log("novelty")
+#         metrics['Novelty'] = novelty(mols, train, pool)
+#         end_log(start_time)
         
     enable_rdkit_log()
     if close_pool:
