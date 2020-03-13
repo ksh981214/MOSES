@@ -4,15 +4,36 @@ import warnings
 import numpy as np
 import rdkit
 
+import pandas as pd
+
 from moses.metrics.metrics import get_all_metrics
-from moses.script_utils import read_smiles_csv
+#from moses.script_utils import read_smiles_csv
+
+from datetime import datetime
+
+def start_log(metric):
+    print("{} Loading...".format(metric))
+    start = datetime.now()
+    print("Start: {}".format(start))
+    
+    return start
+
+def end_log(start_time):
+    print("Consume Time: {}".format(datetime.now()-start_time))
 
 lg = rdkit.RDLogger.logger()
 lg.setLevel(rdkit.RDLogger.CRITICAL)
 
+def read_smiles_csv(path):
+    return pd.read_csv(path,squeeze=True).astype(str).tolist()
+
 
 def main(config, print_metrics=True):
+    
+    start_time = start_log("test")
     test = read_smiles_csv(config.test_path)
+    end_log(start_time)
+    
     test_scaffolds = None
     ptest = None
     ptest_scaffolds = None
@@ -28,6 +49,7 @@ def main(config, print_metrics=True):
         else:
             ptest = np.load(
                 config.ptest_path, allow_pickle=True)['stats'].item()
+    #None        
     if config.ptest_scaffolds_path is not None:
         if not os.path.exists(config.ptest_scaffolds_path):
             warnings.warn(f'{config.ptest_scaffolds_path} does not exist')
@@ -36,6 +58,9 @@ def main(config, print_metrics=True):
             ptest_scaffolds = np.load(
                 config.ptest_scaffolds_path, allow_pickle=True)['stats'].item()
     gen = read_smiles_csv(config.gen_path)
+    
+    print("Start Calculating Metric")
+    
     metrics = get_all_metrics(test, gen, k=config.ks, n_jobs=config.n_jobs,
                               device=config.device,
                               test_scaffolds=test_scaffolds,
@@ -86,6 +111,14 @@ def get_parser():
 
 
 if __name__ == '__main__':
+    start = datetime.now()
+    print("Start: {}".format(start))
     parser = get_parser()
+          
+    args = parser.parse_args()
+    print(args)
+          
     config = parser.parse_known_args()[0]
     main(config)
+    print("Finish: {}".format(datetime.now()))
+    print("Cosume Time: {}".format(datetime.now()-start))

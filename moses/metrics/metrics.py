@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*
+
 import warnings
 from multiprocessing import Pool
 import numpy as np
@@ -12,7 +14,18 @@ from .utils import compute_fragments, average_agg_tanimoto, \
     get_mol, canonic_smiles, mol_passes_filters, \
     logP, QED, SA, NP, weight
 
+from datetime import datetime
 
+def start_log(metric):
+    print("{} calculating...".format(metric))
+    start = datetime.now()
+    print("Start: {}".format(start))
+    
+    return start
+
+def end_log(start_time):
+    print("Consume Time: {}".format(datetime.now()-start_time))
+    
 def get_all_metrics(test, gen, k=None, n_jobs=1, device='cpu',
                     batch_size=512, test_scaffolds=None,
                     ptest=None, ptest_scaffolds=None,
@@ -70,58 +83,112 @@ def get_all_metrics(test, gen, k=None, n_jobs=1, device='cpu',
             close_pool = True
         else:
             pool = 1
+    
+    # Valid 여부 검사
+    start_time = start_log('valid')
     metrics['valid'] = fraction_valid(gen, n_jobs=pool)
+    end_log(start_time)
+    
     gen = remove_invalid(gen, canonize=True)
     if not isinstance(k, (list, tuple)):
         k = [k]
     for _k in k:
+        start_time = start_log('unique@{}'.format(_k))
         metrics['unique@{}'.format(_k)] = fraction_unique(gen, _k, pool)
-
+        end_log(start_time)
+        
+    # Precalculated Test npz 계산
     if ptest is None:
+        start_time = start_log('Precalculated Test')
         ptest = compute_intermediate_statistics(test, n_jobs=n_jobs,
                                                 device=device,
                                                 batch_size=batch_size,
                                                 pool=pool)
+        end_log(start_time)
+        
+    # Precalculated Test_scaffold npz 계산 
     if test_scaffolds is not None and ptest_scaffolds is None:
+        start_time = start_log('Precalculated Test_scaffold')
         ptest_scaffolds = compute_intermediate_statistics(
             test_scaffolds, n_jobs=n_jobs,
             device=device, batch_size=batch_size,
             pool=pool
         )
+        end_log(start_time)
+        
     mols = mapper(pool)(get_mol, gen)
     kwargs = {'n_jobs': pool, 'device': device, 'batch_size': batch_size}
     kwargs_fcd = {'n_jobs': n_jobs, 'device': device, 'batch_size': batch_size}
+    
+    
+    
+    start_time = start_log('FCD/Test')
     metrics['FCD/Test'] = FCDMetric(**kwargs_fcd)(gen=gen, pref=ptest['FCD'])
+    end_log(start_time)
+    
+    start_time = start_log('SNN/Test')
     metrics['SNN/Test'] = SNNMetric(**kwargs)(gen=mols, pref=ptest['SNN'])
+    end_log(start_time)
+    
+    start_time = start_log('Frag/Test')
     metrics['Frag/Test'] = FragMetric(**kwargs)(gen=mols, pref=ptest['Frag'])
+    end_log(start_time)
+    
+    start_time = start_log('Scaf/Test')
     metrics['Scaf/Test'] = ScafMetric(**kwargs)(gen=mols, pref=ptest['Scaf'])
+    end_log(start_time)
+    
     if ptest_scaffolds is not None:
+        start_time = start_log('FCD/TestSF')
         metrics['FCD/TestSF'] = FCDMetric(**kwargs_fcd)(
             gen=gen, pref=ptest_scaffolds['FCD']
         )
+        end_log(start_time)
+        
+        start_time = start_log('SNN/TestSF')
         metrics['SNN/TestSF'] = SNNMetric(**kwargs)(
             gen=mols, pref=ptest_scaffolds['SNN']
         )
+        end_log(start_time)
+        
+        start_time = start_log('Frag/TestSF')
         metrics['Frag/TestSF'] = FragMetric(**kwargs)(
             gen=mols, pref=ptest_scaffolds['Frag']
         )
+        end_log(start_time)
+        
+        start_time = start_log('Scaf/TestSF')
         metrics['Scaf/TestSF'] = ScafMetric(**kwargs)(
             gen=mols, pref=ptest_scaffolds['Scaf']
         )
-
+        end_log(start_time)
+        
+    start_time = start_log('IntDiv')
     metrics['IntDiv'] = internal_diversity(mols, pool, device=device)
+    end_log(start_time)
+    
+    start_time = start_log('IntDiv2')
     metrics['IntDiv2'] = internal_diversity(mols, pool, device=device, p=2)
+    end_log(start_time)
+    
+    start_time = start_log('Filters')
     metrics['Filters'] = fraction_passes_filters(mols, pool)
-
+    end_log(start_time)
+    
     # Properties
     for name, func in [('logP', logP), ('SA', SA),
                        ('QED', QED), ('NP', NP),
                        ('weight', weight)]:
+        start_time = start_log(name)
         metrics[name] = FrechetMetric(func, **kwargs)(gen=mols,
                                                       pref=ptest[name])
+        end_log(start_time)
 
     if train is not None:
+        start_time = start_log("novelty")
         metrics['Novelty'] = novelty(mols, train, pool)
+        end_log(start_time)
+        
     enable_rdkit_log()
     if close_pool:
         pool.close()
