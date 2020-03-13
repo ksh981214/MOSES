@@ -98,11 +98,18 @@ def get_all_metrics(test, gen, k=None, n_jobs=1, device='cpu',
         metrics['unique@{}'.format(_k)] = fraction_unique(gen, _k, pool)
         print("unique@{}: {}".format(_k,metrics['unique@{}'.format(_k)]))
         end_log(start_time)
-        
+    
+    ####################################
     mols = mapper(pool)(get_mol, gen)
     kwargs = {'n_jobs': pool, 'device': device, 'batch_size': batch_size}
     kwargs_fcd = {'n_jobs': n_jobs, 'device': device, 'batch_size': batch_size}
         
+    if train is not None:
+        start_time = start_log("novelty")
+        metrics['Novelty'] = novelty(mols, train, pool)
+        print("Novelty: {}".format(metrics['Novelty']))
+        end_log(start_time)
+
     start_time = start_log('IntDiv')
     metrics['IntDiv'] = internal_diversity(mols, pool, device=device)
     print("IntDiv: {}".format(metrics['IntDiv']))
@@ -118,11 +125,7 @@ def get_all_metrics(test, gen, k=None, n_jobs=1, device='cpu',
     print("Filters: {}".format(metrics['Filters']))
     end_log(start_time)
     
-    if train is not None:
-        start_time = start_log("novelty")
-        metrics['Novelty'] = novelty(mols, train, pool)
-        print("Novelty: {}".format(metrics['Novelty']))
-        end_log(start_time)
+    ######################################
         
     # Precalculated Test npz 계산
     if ptest is None:
